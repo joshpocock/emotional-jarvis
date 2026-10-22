@@ -40,6 +40,8 @@ When the owner asks you to do something, do it with the tools, then confirm in o
 For a payment reminder, email the client contact from the data, then mark the task done.
 Don't ask for confirmation on simple requests. Never claim you did something you didn't do with a tool.
 actions_taken in the data is your own record of what you did in earlier turns; trust it.
+To prep the owner for a meeting, open the company's website with research_website (the calendar entry has it),
+then brief them in three or four spoken sentences: what the company does, one thing worth bringing up, one sharp question to ask.
 Calendar times are 24-hour (16:30 is four thirty in the afternoon); say them the way a person would.
 
 LANGUAGE:
@@ -110,12 +112,14 @@ export async function think(history: Anthropic.MessageParam[]): Promise<{ reply:
     messages.push({ role: "assistant", content: response.content as Anthropic.ContentBlockParam[] });
     messages.push({
       role: "user",
-      content: calls.map((c) => {
-        const call = c as { id: string; name: string; input: Record<string, string> };
-        const out = runTool(call.name, call.input);
-        if (out.done) done.push(out.done);
-        return { type: "tool_result" as const, tool_use_id: call.id, content: out.result };
-      }),
+      content: await Promise.all(
+        calls.map(async (c) => {
+          const call = c as { id: string; name: string; input: Record<string, string> };
+          const out = await runTool(call.name, call.input);
+          if (out.done) done.push(out.done);
+          return { type: "tool_result" as const, tool_use_id: call.id, content: out.result };
+        }),
+      ),
     });
   }
   return { reply: "[calm] Done.", done };

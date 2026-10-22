@@ -3,6 +3,7 @@
 // The outbox is a demo: emails land on the dashboard. Wire sendEmail() to your email provider to send for real.
 import type Anthropic from "@anthropic-ai/sdk";
 import { business, type Business } from "./business";
+import { readWebsite } from "./browser";
 
 // actions_taken is Jarvis's own record of what it did this session; it sees it with the rest of the data.
 type State = Business & {
@@ -49,6 +50,15 @@ export const tools: Anthropic.Tool[] = [
     },
   },
   {
+    name: "research_website",
+    description: "Open a company's website in a real browser and read it, e.g. to prep the owner for a meeting. Use the website from the calendar entry.",
+    input_schema: {
+      type: "object",
+      properties: { url: { type: "string", description: "The full website address" } },
+      required: ["url"],
+    },
+  },
+  {
     name: "complete_task",
     description: "Mark one of the owner's promised tasks as done.",
     input_schema: {
@@ -62,10 +72,19 @@ export const tools: Anthropic.Tool[] = [
 export type Done = { action: string; detail: string };
 
 // Run one tool call against the live state and say what happened.
-export function runTool(name: string, input: Record<string, string>): { result: string; done?: Done } {
-  const out = act(name, input);
+export async function runTool(name: string, input: Record<string, string>): Promise<{ result: string; done?: Done }> {
+  const out = name === "research_website" ? await research(input.url) : act(name, input);
   if (out.done) state().actions_taken.push(`${out.done.action}: ${out.done.detail}`);
   return out;
+}
+
+async function research(url: string): Promise<{ result: string; done?: Done }> {
+  try {
+    const page = await readWebsite(url);
+    return { result: page, done: { action: "Researched", detail: new URL(url).hostname.replace(/^www\./, "") } };
+  } catch (err) {
+    return { result: `Couldn't open ${url}: ${err instanceof Error ? err.message : String(err)}` };
+  }
 }
 
 function act(name: string, input: Record<string, string>): { result: string; done?: Done } {

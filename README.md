@@ -17,6 +17,7 @@ Built with **Fish Audio Drama 3** (voice and speech to text), **Claude** (the br
 - **Brief me like a podcast.** Two hosts, one Drama 3 request.
 - **Voice spend meter.** See exactly what the voice costs as you go.
 - **It takes actions.** "Send the Brightside invoice", "move my four thirty to tomorrow", "tick off the walkthrough": Jarvis does it with Claude tool use and the dashboard updates live.
+- **It preps you for meetings.** "Prep me for my two o'clock with Shopify": a real browser window opens the company's website, Jarvis reads it and briefs you on what they do, what to bring up and one sharp question to ask.
 - **Start my day.** One click and Jarvis greets you and briefs you on what matters most, in the right mood.
 
 ## Setup (2 minutes)
@@ -29,6 +30,7 @@ You need Node.js 20 or newer.
 
 ```bash
 npm install
+npx playwright install chromium   # the browser Jarvis uses for meeting prep
 cp .env.example .env.local    # then paste both keys into .env.local
 npm run dev
 ```
@@ -62,6 +64,7 @@ mic -> Fish Audio speech to text (transcribe-1-pro, keeps emotion cues)
 | `lib/brain.ts` | Claude: replies and the podcast script |
 | `lib/store.ts` | Conversation, queued audio and the cost meter |
 | `lib/actions.ts` | What Jarvis can do: the tools, and the live copy of your data they change |
+| `lib/browser.ts` | Opens a real, visible browser and reads a website (Playwright) |
 | `app/api/*` | `talk`, `audio/[id]`, `podcast`, `greet`, `reset` |
 | `data/business.json` | Your business data |
 
@@ -77,6 +80,7 @@ Each step is a git tag, so you can see exactly what changed:
 | `step-3-meter` | Live voice spend meter |
 | `step-4-actions` | Jarvis sends emails, moves meetings and ticks off tasks |
 | `step-5-start-my-day` | Start my day: Jarvis briefs you first |
+| `step-6-meeting-prep` | Jarvis opens a real browser, researches who you're meeting and briefs you |
 
 `git checkout step-1-moods` to see any stage.
 
