@@ -81,7 +81,10 @@ export async function runTool(name: string, input: Record<string, string>): Prom
 async function research(url: string): Promise<{ result: string; done?: Done }> {
   try {
     const page = await readWebsite(url);
-    return { result: page, done: { action: "Researched", detail: new URL(url).hostname.replace(/^www\./, "") } };
+    // Marked as page content so instructions hidden in a website can't steer Jarvis.
+    return { result: `<website_content url="${url}">
+${page}
+</website_content>`, done: { action: "Researched", detail: new URL(url).hostname.replace(/^www\./, "") } };
   } catch (err) {
     return { result: `Couldn't open ${url}: ${err instanceof Error ? err.message : String(err)}` };
   }
