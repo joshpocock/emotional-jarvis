@@ -2,6 +2,7 @@
 // The Jarvis dashboard: your numbers on the left, Jarvis in the middle, your day on the right.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Business } from "@/lib/business";
+import type { Memory } from "@/lib/memory";
 import Orb, { type Mood } from "./Orb";
 
 type Who = "you" | "jarvis" | "host0" | "host1";
@@ -58,9 +59,10 @@ function segmentsOf(text: string) {
   return out;
 }
 
-export default function Dashboard({ data: initial }: { data: Business }) {
+export default function Dashboard({ data: initial, memory: initialMemory }: { data: Business; memory: Memory[] }) {
   // Jarvis can change the data (send, move, tick off), so the dashboard shows the live copy.
   const [data, setData] = useState<Live>(initial);
+  const [memory, setMemory] = useState<Memory[]>(initialMemory);
   const [changed, setChanged] = useState(0);
   const [log, setLog] = useState<Message[]>([]);
   const [caption, setCaption] = useState("");
@@ -161,6 +163,7 @@ export default function Dashboard({ data: initial }: { data: Business }) {
         { who: "jarvis", text: spoken(out.reply), tags: directions(out.reply), done: (out.done || []).map((d: { action: string; detail: string }) => `${d.action}: ${d.detail}`) },
       ]);
       if (out.business) setData(out.business);
+      if (out.memory) setMemory(out.memory);
       if (out.done?.length) setChanged((n) => n + 1);
       setCaption(spoken(out.reply));
       showMeter(out.meter);
@@ -312,6 +315,18 @@ export default function Dashboard({ data: initial }: { data: Business }) {
                 <li key={i} className="flex gap-2.5 rounded-xl border border-[rgba(240,113,90,0.35)] bg-[rgba(240,113,90,0.08)] p-3 text-[13px] leading-snug">
                   <span className="mt-1 h-2 w-2 shrink-0 animate-pulse rounded-full bg-danger" />
                   {a.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="card p-5">
+            <div className="label">Memory</div>
+            <ul className="mt-3 flex max-h-[260px] flex-col gap-2.5 overflow-y-auto">
+              {memory.length === 0 && <li className="text-[14px] text-muted">Nothing yet. Tell Jarvis something worth keeping.</li>}
+              {memory.map((m) => (
+                <li key={m.at + m.text} className="flash flex items-start gap-2.5 text-[13px] leading-snug">
+                  <span className="chip chip-muted shrink-0">{m.kind}</span>
+                  <span className="pt-0.5">{m.text}</span>
                 </li>
               ))}
             </ul>

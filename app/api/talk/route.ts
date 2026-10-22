@@ -3,6 +3,7 @@ import { transcribe, type Heard } from "@/lib/fish";
 import { think } from "@/lib/brain";
 import { store, queueAudio, meter } from "@/lib/store";
 import { state } from "@/lib/actions";
+import { memories } from "@/lib/memory";
 
 export async function POST(request: Request) {
   try {
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
     store.history.push({ role: "assistant", content: reply });
 
     const audio = queueAudio(reply);
-    return Response.json({ heard: heard.text, language: heard.language || null, reply, audio, done, business: state(), meter: meter() });
+    return Response.json({ heard: heard.text, language: heard.language || null, reply, audio, done, business: state(), memory: memories(), meter: meter() });
   } catch (err) {
     console.error(err);
     return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });

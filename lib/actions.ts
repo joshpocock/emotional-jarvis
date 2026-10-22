@@ -1,9 +1,11 @@
 // What Jarvis can do, not just say: email a client, move a meeting, tick off a task.
-// Changes live in memory (restart the server to get data/business.json back).
+// Changes live in memory (restart the server to get data/business.json back), except remember/forget,
+// which write to data/memory.json so they survive a restart.
 // The outbox is a demo: emails land on the dashboard. Wire sendEmail() to your email provider to send for real.
 import type Anthropic from "@anthropic-ai/sdk";
 import { business, type Business } from "./business";
 import { readWebsite } from "./browser";
+import { remember, forget, type Memory } from "./memory";
 
 // actions_taken is Jarvis's own record of what it did this session; it sees it with the rest of the data.
 type State = Business & {
@@ -67,6 +69,28 @@ export const tools: Anthropic.Tool[] = [
       required: ["title_contains"],
     },
   },
+  {
+    name: "remember",
+    description:
+      "Save something the owner told you that's worth knowing next time: a preference, a person, or a fact about their business. It's kept after a restart.",
+    input_schema: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["preference", "person", "fact"] },
+        text: { type: "string", description: "One short, self-contained sentence, e.g. 'Prefers meetings after 10am' or 'Maria Lopez is the CFO at Brightside'" },
+      },
+      required: ["kind", "text"],
+    },
+  },
+  {
+    name: "forget",
+    description: "Delete a saved memory, when the owner asks you to forget it or it's no longer true.",
+    input_schema: {
+      type: "object",
+      properties: { text_contains: { type: "string", description: "A word or phrase from the memory" } },
+      required: ["text_contains"],
+    },
+  },
 ];
 
 export type Done = { action: string; detail: string };
@@ -107,6 +131,18 @@ function act(name: string, input: Record<string, string>): { result: string; don
     if (!t) return { result: `No task matching "${input.title_contains}".` };
     t.status = "done";
     return { result: `Marked "${t.title}" as done.`, done: { action: "Task done", detail: t.title } };
+  }
+  if (name === "remember") {
+    const kind = (["preference", "person", "fact"].includes(input.kind) ? input.kind : "fact") as Memory["kind"];
+    const m = remember(kind, input.text.trim());
+    if (!m) return { result: `Already remembered: "${input.text}".` };
+    return { result: `Remembered: "${m.text}".`, done: { action: "Remembered", detail: m.text } };
+  }
+  if (name === "forget") {
+    const gone = forget(input.text_contains);
+    if (!gone.length) return { result: `No memory matching "${input.text_contains}".` };
+    const what = gone.map((m) => m.text).join("; ");
+    return { result: `Forgot: ${what}.`, done: { action: "Forgot", detail: what } };
   }
   return { result: `Unknown tool ${name}.` };
 }

@@ -22,6 +22,9 @@
 
 # misc
 .DS_Store
+
+# what Jarvis remembers about you
+/data/memory.json
 *.pem
 
 # debug

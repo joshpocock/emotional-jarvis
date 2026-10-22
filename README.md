@@ -19,6 +19,7 @@ Built with **Fish Audio Drama 3** (voice and speech to text), **Claude** (the br
 - **It takes actions.** "Send the Brightside invoice", "move my four thirty to tomorrow", "tick off the walkthrough": Jarvis does it with Claude tool use and the dashboard updates live.
 - **It preps you for meetings.** "Prep me for my two o'clock with Shopify": a real browser window opens the company's website, Jarvis reads it and briefs you on what they do, what to bring up and one sharp question to ask.
 - **Start my day.** One click and Jarvis greets you and briefs you on what matters most, in the right mood.
+- **It remembers.** Tell it a preference, who someone is or a fact about your business and it saves it to `data/memory.json`, which survives a restart. "Forget that" deletes it. What it remembers shows on the Memory card.
 
 ## Setup (2 minutes)
 
@@ -64,6 +65,7 @@ mic -> Fish Audio speech to text (transcribe-1-pro, keeps emotion cues)
 | `lib/brain.ts` | Claude: replies and the podcast script |
 | `lib/store.ts` | Conversation, queued audio and the cost meter |
 | `lib/actions.ts` | What Jarvis can do: the tools, and the live copy of your data they change |
+| `lib/memory.ts` | Long-term memory: reads and writes `data/memory.json` |
 | `lib/browser.ts` | Opens a real, visible browser and reads a website (Playwright) |
 | `app/api/*` | `talk`, `audio/[id]`, `podcast`, `greet`, `reset` |
 | `data/business.json` | Your business data |
