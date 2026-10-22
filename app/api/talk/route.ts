@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const reply = await think(store.history.slice(-12));
     store.history.push({ role: "assistant", content: reply });
 
-    return Response.json({ heard: heard.text, reply, audio: queueAudio(reply) });
+    return Response.json({ heard: heard.text, language: heard.language || null, reply, audio: queueAudio(reply) });
   } catch (err) {
     console.error(err);
     return Response.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
