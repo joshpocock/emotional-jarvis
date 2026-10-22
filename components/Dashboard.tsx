@@ -1,0 +1,286 @@
+"use client";
+// The Jarvis dashboard: your numbers on the left, Jarvis in the middle, your day on the right.
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Business } from "@/lib/business";
+import Orb from "./Orb";
+
+type Who = "you" | "jarvis";
+type Message = { who: Who; text: string; tags?: string[] };
+type Mode = "idle" | "listening" | "thinking" | "speaking";
+
+const NAMES: Record<Who, string> = { you: "YOU", jarvis: "JARVIS" };
+const money = (n: number) => `$${n.toLocaleString("en-US")}`;
+
+// What the viewer reads on screen.
+function spoken(reply: string) {
+  return reply;
+}
+
+export default function Dashboard({ data }: { data: Business }) {
+  const [log, setLog] = useState<Message[]>([]);
+  const [caption, setCaption] = useState("");
+  const [mode, setMode] = useState<Mode>("idle");
+  const [status, setStatus] = useState("Hold space to talk");
+  const [typed, setTyped] = useState("");
+
+  const voice = useRef<HTMLAudioElement>(null);
+  const ctx = useRef<AudioContext | null>(null);
+  const outAnalyser = useRef<AnalyserNode | null>(null);
+  const micAnalyser = useRef<AnalyserNode | null>(null);
+  const rec = useRef<MediaRecorder | null>(null);
+  const stream = useRef<MediaStream | null>(null);
+  const modeRef = useRef<Mode>("idle");
+  const logEnd = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+
+  useEffect(() => {
+    logEnd.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [log]);
+
+  // ---------- audio levels for the orb ----------
+  const audioCtx = useCallback(() => {
+    if (!ctx.current) {
+      const c = new AudioContext();
+      const an = c.createAnalyser();
+      an.fftSize = 256;
+      c.createMediaElementSource(voice.current!).connect(an);
+      an.connect(c.destination);
+      ctx.current = c;
+      outAnalyser.current = an;
+    }
+    return ctx.current;
+  }, []);
+
+  const level = useCallback(() => {
+    const an = modeRef.current === "listening" ? micAnalyser.current : outAnalyser.current;
+    if (!an) return 0;
+    const d = new Uint8Array(an.frequencyBinCount);
+    an.getByteFrequencyData(d);
+    return d.reduce((a, b) => a + b, 0) / d.length / 255;
+  }, []);
+
+  // ---------- talking to the server ----------
+  const play = useCallback(
+    async (url: string) => {
+      await audioCtx().resume();
+      setMode("speaking");
+      setStatus("Speaking");
+      const el = voice.current!;
+      el.src = url;
+      await el.play();
+      await new Promise((r) => (el.onended = r));
+      setMode("idle");
+      setStatus("Hold space to talk");
+    },
+    [audioCtx],
+  );
+
+  const send = useCallback(
+    async (body: BodyInit, type: string) => {
+      setMode("thinking");
+      setStatus("Thinking…");
+      const out = await (await fetch("/api/talk", { method: "POST", headers: { "content-type": type }, body })).json();
+      if (out.error || !out.heard) {
+        setStatus(out.error || out.note || "I didn't catch that.");
+        setMode("idle");
+        return;
+      }
+      setLog((l) => [...l, { who: "you", text: spoken(out.heard) }, { who: "jarvis", text: spoken(out.reply) }]);
+      setCaption(spoken(out.reply));
+      await play(out.audio);
+    },
+    [play],
+  );
+
+  // ---------- hold to talk (button or space bar) ----------
+  const startTalking = useCallback(async () => {
+    if (rec.current?.state === "recording") return;
+    const c = audioCtx();
+    await c.resume();
+    stream.current ??= await navigator.mediaDevices.getUserMedia({ audio: true });
+    const an = c.createAnalyser();
+    an.fftSize = 256;
+    c.createMediaStreamSource(stream.current).connect(an);
+    micAnalyser.current = an;
+    const chunks: Blob[] = [];
+    const r = new MediaRecorder(stream.current, { mimeType: "audio/webm;codecs=opus" });
+    r.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    r.onstop = () => send(new Blob(chunks, { type: "audio/webm" }), "audio/webm");
+    r.start();
+    rec.current = r;
+    voice.current?.pause();
+    setMode("listening");
+    setStatus("Listening…");
+  }, [audioCtx, send]);
+
+  const stopTalking = useCallback(() => {
+    if (rec.current?.state === "recording") rec.current.stop();
+  }, []);
+
+  useEffect(() => {
+    const typing = () => document.activeElement?.tagName === "INPUT";
+    const down = (e: KeyboardEvent) => {
+      if (e.code === "Space" && !typing() && !e.repeat) {
+        e.preventDefault();
+        startTalking();
+      }
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code === "Space" && !typing()) stopTalking();
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("pointerup", stopTalking);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("pointerup", stopTalking);
+    };
+  }, [startTalking, stopTalking]);
+
+  const t = data.today;
+  const change = Math.round(((t.revenue_this_week - t.revenue_last_week) / t.revenue_last_week) * 100);
+  const live = mode !== "idle";
+
+  return (
+    <main className="mx-auto grid min-h-screen max-w-[1440px] grid-rows-[auto_1fr_auto] gap-5 px-7 py-6">
+      {/* header */}
+      <header className="flex items-center justify-between">
+        <div className="flex items-center gap-3 text-[14px] font-bold tracking-[0.28em]">
+          <span className="h-2.5 w-2.5 rounded-full bg-accent shadow-[0_0_14px_var(--accent)]" />
+          JARVIS
+          <span className="ml-3 text-[12px] font-medium tracking-normal text-muted">{data.business}</span>
+        </div>
+        <div className={`min-w-[150px] text-right text-[14px] ${live ? "text-accent" : "text-muted"}`}>{status}</div>
+      </header>
+
+      {/* three columns */}
+      <section className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_1fr_300px]">
+        {/* left: numbers and alerts */}
+        <aside className="flex flex-col gap-4">
+          <div className="card p-5">
+            <div className="label">Revenue this week</div>
+            <div className="mt-2 text-[34px] font-bold tabular-nums">{money(t.revenue_this_week)}</div>
+            <div className={`mt-1 text-[13px] font-semibold ${change >= 0 ? "text-good" : "text-danger"}`}>
+              {change >= 0 ? "▲" : "▼"} {Math.abs(change)}% vs last week ({money(t.revenue_last_week)})
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="card p-5">
+              <div className="label">New leads</div>
+              <div className="mt-2 text-[28px] font-bold tabular-nums">{t.new_leads}</div>
+            </div>
+            <div className="card p-5">
+              <div className="label">Open tickets</div>
+              <div className="mt-2 text-[28px] font-bold tabular-nums">{t.open_support_tickets}</div>
+            </div>
+          </div>
+          <div className="card p-5">
+            <div className="label">Alerts</div>
+            <ul className="mt-3 flex flex-col gap-2">
+              {data.alerts.length === 0 && <li className="text-[14px] text-muted">All clear</li>}
+              {data.alerts.map((a, i) => (
+                <li key={i} className="flex gap-2.5 rounded-xl border border-[rgba(240,113,90,0.35)] bg-[rgba(240,113,90,0.08)] p-3 text-[13px] leading-snug">
+                  <span className="mt-1 h-2 w-2 shrink-0 animate-pulse rounded-full bg-danger" />
+                  {a.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
+
+        {/* center: Jarvis */}
+        <div className="card flex min-h-[560px] flex-col items-center justify-between overflow-hidden px-6 pb-4 pt-6">
+          <Orb level={level} />
+          <p className="min-h-[64px] max-w-[640px] text-center text-[21px] font-medium leading-[1.45]">{caption}</p>
+          <div className="log mt-3 flex max-h-[200px] w-full flex-col gap-2.5 overflow-y-auto pt-4">
+            {log.map((m, i) => (
+              <div key={i} className="grid grid-cols-[64px_1fr] gap-3 text-[14px] leading-relaxed">
+                <div className={`pt-0.5 text-[11px] font-semibold tracking-[0.12em] ${m.who === "you" ? "text-muted" : "text-accent"}`}>
+                  {NAMES[m.who]}
+                </div>
+                <div>
+                  {m.text}
+                  {m.tags && m.tags.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {m.tags.map((tag, j) => (
+                        <span key={j} className="chip">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            <div ref={logEnd} />
+          </div>
+        </div>
+
+        {/* right: today and tasks */}
+        <aside className="flex flex-col gap-4">
+          <div className="card p-5">
+            <div className="label">Today</div>
+            <ul className="mt-3 flex flex-col gap-3">
+              {data.calendar.map((c, i) => (
+                <li key={i} className="grid grid-cols-[52px_1fr] gap-3 text-[14px]">
+                  <span className="font-semibold tabular-nums text-accent">{c.time}</span>
+                  <span>{c.title}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="card p-5">
+            <div className="label">Promised and not done</div>
+            <ul className="mt-3 flex flex-col gap-3">
+              {data.tasks.map((task, i) => (
+                <li key={i} className="text-[14px] leading-snug">
+                  <div>{task.title}</div>
+                  <div className="mt-1 flex gap-2 text-[12px]">
+                    <span className="chip chip-muted">promised {task.promised}</span>
+                    <span className="chip !border-[rgba(240,113,90,0.35)] !bg-[rgba(240,113,90,0.08)] !text-danger">{task.status}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
+      </section>
+
+      {/* controls */}
+      <footer className="flex items-center gap-3.5">
+        <button
+          onPointerDown={startTalking}
+          className={`inline-flex select-none items-center gap-2.5 rounded-full border px-6 py-[15px] text-[15px] font-semibold transition ${
+            mode === "listening" ? "scale-[1.04] border-accent bg-accent text-black" : "border-[rgba(212,176,76,0.45)] bg-accent-soft hover:bg-[rgba(212,176,76,0.24)]"
+          }`}
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <rect x="9" y="3" width="6" height="11" rx="3" />
+            <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+          </svg>
+          Hold to talk
+        </button>
+        <form
+          className="flex-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!typed.trim()) return;
+            send(JSON.stringify({ text: typed.trim() }), "application/json");
+            setTyped("");
+          }}
+        >
+          <input
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            placeholder="or type to Jarvis…"
+            className="w-full rounded-full border border-line bg-panel px-[18px] py-[15px] text-[15px] outline-none focus:border-[rgba(212,176,76,0.5)]"
+          />
+        </form>
+      </footer>
+      <audio ref={voice} />
+    </main>
+  );
+}
