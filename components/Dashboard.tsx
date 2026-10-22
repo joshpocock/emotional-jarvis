@@ -2,7 +2,7 @@
 // The Jarvis dashboard: your numbers on the left, Jarvis in the middle, your day on the right.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Business } from "@/lib/business";
-import Orb from "./Orb";
+import Orb, { type Mood } from "./Orb";
 
 type Who = "you" | "jarvis" | "host0" | "host1";
 type Message = { who: Who; text: string; tags?: string[]; done?: string[] };
@@ -22,6 +22,40 @@ function spoken(reply: string) {
 }
 function directions(reply: string) {
   return [...reply.matchAll(DIRECTION)].map((m) => m[1].trim());
+}
+
+// Which colour a direction gets on the orb. The first word that names a mood wins: [calm, firm] is calm.
+const MOODS: [Mood, RegExp][] = [
+  ["alert", /alert|urgent|serious|fast|firm|tense|stern/],
+  ["dry", /dry|deadpan|teas|sarcas|wry|mock/],
+  ["soft", /soft|slow|gentle|reassur|calm|quiet|tired|sigh|whisper/],
+  ["warm", /warm|proud|bright|upbeat|excit|cheer|happy|easy|relaxed|amused/],
+];
+function moodOf(direction: string): Mood | null {
+  for (const word of direction.toLowerCase().split(/[,;]/)) {
+    const hit = MOODS.find(([, re]) => re.test(word));
+    if (hit) return hit[0];
+  }
+  return null;
+}
+
+// Split a reply into stretches by direction, measured in words, so the orb can follow the mood as it's spoken.
+function segmentsOf(text: string) {
+  const parts = text.replace(/<\|speaker:\d+\|>/g, " ").split(DIRECTION); // [words, direction, words, ...]
+  const out: { mood: Mood; until: number }[] = [];
+  let mood: Mood = "warm";
+  let words = 0;
+  parts.forEach((part, i) => {
+    if (i % 2 === 1) {
+      mood = moodOf(part) ?? mood;
+      return;
+    }
+    const n = part.replace(/<\/?\w+>/g, " ").split(/\s+/).filter(Boolean).length;
+    if (!n) return;
+    words += n;
+    out.push({ mood, until: words });
+  });
+  return out;
 }
 
 export default function Dashboard({ data: initial }: { data: Business }) {
@@ -79,9 +113,23 @@ export default function Dashboard({ data: initial }: { data: Business }) {
     return d.reduce((a, b) => a + b, 0) / d.length / 255;
   }, []);
 
+  // ---------- the orb's colour follows the mood of each part of the reply ----------
+  const segments = useRef<{ mood: Mood; until: number }[]>([]);
+  const mood = useCallback((): Mood => {
+    const el = voice.current;
+    const segs = segments.current;
+    if (modeRef.current !== "speaking" || !el || segs.length === 0) return "warm";
+    const total = segs[segs.length - 1].until;
+    // Streaming audio has no known length, so estimate it from the word count (about 2.6 words a second).
+    const length = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : total / 2.6;
+    const at = (el.currentTime / length) * total;
+    return (segs.find((s) => at < s.until) ?? segs[segs.length - 1]).mood;
+  }, []);
+
   // ---------- talking to the server ----------
   const play = useCallback(
-    async (url: string) => {
+    async (url: string, text = "") => {
+      segments.current = segmentsOf(text);
       await audioCtx().resume();
       setMode("speaking");
       setStatus("Speaking");
@@ -116,7 +164,7 @@ export default function Dashboard({ data: initial }: { data: Business }) {
       if (out.done?.length) setChanged((n) => n + 1);
       setCaption(spoken(out.reply));
       showMeter(out.meter);
-      await play(out.audio);
+      await play(out.audio, out.reply);
     },
     [play, showMeter],
   );
@@ -139,7 +187,7 @@ export default function Dashboard({ data: initial }: { data: Business }) {
     setLog((l) => [...l, ...lines]);
     setCaption("");
     showMeter(out.meter);
-    await play(out.audio);
+    await play(out.audio, out.script);
   }, [play, showMeter]);
 
   // ---------- start my day: Jarvis briefs you first ----------
@@ -158,7 +206,7 @@ export default function Dashboard({ data: initial }: { data: Business }) {
     setLog((l) => [...l, { who: "jarvis", text: spoken(out.reply), tags: directions(out.reply) }]);
     setCaption(spoken(out.reply));
     showMeter(out.meter);
-    await play(out.audio);
+    await play(out.audio, out.reply);
   }, [play, showMeter]);
 
   // ---------- hold to talk (button or space bar) ----------
@@ -272,7 +320,7 @@ export default function Dashboard({ data: initial }: { data: Business }) {
 
         {/* center: Jarvis */}
         <div className="card flex min-h-[560px] flex-col items-center justify-between overflow-hidden px-6 pb-4 pt-6">
-          <Orb level={level} />
+          <Orb level={level} mood={mood} />
           {!started && log.length === 0 ? (
             <button
               onClick={greet}

@@ -1,7 +1,7 @@
 # Emotional Jarvis
 
 A voice assistant dashboard for your business that picks its own tone for every reply.
-Calm when the numbers are good, urgent when something breaks, dry when you're putting off that invoice.
+Calm when the numbers are good, urgent when something breaks, dry when you're putting off that invoice, and the orb changes colour with the mood.
 Speak Spanish or French and it answers in the same voice. Hit one button and two hosts brief you on your day like a podcast.
 And it does things: ask it to send an invoice, move a meeting or tick off a task, and the dashboard changes in front of you.
 
@@ -40,7 +40,9 @@ npm run dev
 - **Your business data:** edit `data/business.json` and refresh. Jarvis only states facts from this file.
 - **Jarvis's voice:** set `JARVIS_VOICE_ID` in `.env.local` to any Fish Audio voice ID, including a clone of your own voice.
 - **Second podcast host:** `COHOST_VOICE_ID`.
+- **Jarvis's personality:** the first lines of `systemPrompt()` in `lib/brain.ts` (a dry, loyal butler by default).
 - **How Jarvis picks its tone:** the `HOW YOU SOUND` section in `lib/brain.ts`.
+- **Orb colours:** `PALETTE` in `components/Orb.tsx`, and which directions map to which mood in `MOODS` in `components/Dashboard.tsx`.
 - **Real email:** the outbox is a demo, so emails land on the dashboard. Swap the `send_email` branch in `lib/actions.ts` for your email provider to send for real.
 - **More actions:** add a tool to `tools` in `lib/actions.ts` and handle it in `act()`.
 
@@ -55,7 +57,7 @@ mic -> Fish Audio speech to text (transcribe-1-pro, keeps emotion cues)
 | File | Job |
 |---|---|
 | `components/Dashboard.tsx` | The dashboard, hold-to-talk, transcript and meter |
-| `components/Orb.tsx` | The orb that follows the voice |
+| `components/Orb.tsx` | The orb that follows the voice and takes the colour of the mood |
 | `lib/fish.ts` | Fish Audio speech to text and Drama 3 |
 | `lib/brain.ts` | Claude: replies and the podcast script |
 | `lib/store.ts` | Conversation, queued audio and the cost meter |
@@ -69,15 +71,14 @@ Each step is a git tag, so you can see exactly what changed:
 
 | Tag | Adds |
 |---|---|
-| `step-0-base` | The dashboard, and talking to Jarvis: speech to text, Claude, Drama 3 voice |
-| `step-1-emotion` | Jarvis directs its own voice and reacts to how you sound |
-| `step-2-language` | Replies in the language you speak |
-| `step-3-podcast` | Two-host podcast briefing in one request |
-| `step-4-cost-meter` | Live voice spend meter |
-| `step-5-actions` | Jarvis sends emails, moves meetings and ticks off tasks |
-| `step-6-greeting` | Start my day: Jarvis briefs you first |
+| `step-0-start` | The dashboard, and talking to Jarvis: speech to text, Claude (a dry butler), Drama 3 voice |
+| `step-1-moods` | Jarvis directs its own voice, reacts to how you sound, replies in your language, and the orb takes on each mood's colour |
+| `step-2-podcast` | Two-host podcast briefing in one request |
+| `step-3-meter` | Live voice spend meter |
+| `step-4-actions` | Jarvis sends emails, moves meetings and ticks off tasks |
+| `step-5-start-my-day` | Start my day: Jarvis briefs you first |
 
-`git checkout step-1-emotion` to see any stage.
+`git checkout step-1-moods` to see any stage.
 
 ## Notes
 
