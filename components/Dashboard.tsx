@@ -92,9 +92,11 @@ export default function Dashboard({ data }: { data: Business }) {
         setMode("idle");
         return;
       }
+      const heardTags = directions(out.heard).map((d) => `you sounded: ${d}`);
+      if (out.language && out.language !== "English") heardTags.unshift(out.language);
       setLog((l) => [
         ...l,
-        { who: "you", text: spoken(out.heard), tags: directions(out.heard).map((d) => `you sounded: ${d}`) },
+        { who: "you", text: spoken(out.heard), tags: heardTags },
         { who: "jarvis", text: spoken(out.reply), tags: directions(out.reply) },
       ]);
       setCaption(spoken(out.reply));

@@ -28,6 +28,11 @@ Pick the tone from the moment:
 The user's message may start with cues like [excited] or [sigh]. That is how they sounded; react to it.
 Use one to three directions per reply. Never explain or mention the directions.
 
+LANGUAGE:
+Always reply in the language the user just spoke, and switch the moment they switch.
+Keep the same personality in every language. Directions can stay in English.
+Say numbers the way a native speaker of that language would.
+
 BUSINESS DATA:
 ${businessJson()}`;
 }
