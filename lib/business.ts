@@ -6,9 +6,10 @@ export type Business = {
   owner: string;
   business: string;
   today: { revenue_this_week: number; revenue_last_week: number; new_leads: number; open_support_tickets: number };
-  calendar: { time: string; title: string }[];
+  calendar: { time: string; title: string; day?: string }[];
   tasks: { title: string; promised: string; status: string }[];
   alerts: { severity: string; text: string }[];
+  contacts?: { name: string; company: string; email: string }[];
 };
 
 export function businessJson(): string {

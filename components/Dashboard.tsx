@@ -5,7 +5,8 @@ import type { Business } from "@/lib/business";
 import Orb from "./Orb";
 
 type Who = "you" | "jarvis" | "host0" | "host1";
-type Message = { who: Who; text: string; tags?: string[] };
+type Message = { who: Who; text: string; tags?: string[]; done?: string[] };
+type Live = Business & { outbox?: { to: string; subject: string; body: string; at: string }[] };
 type Mode = "idle" | "listening" | "thinking" | "speaking";
 type Meter = { ttsBytes: number; asrSeconds: number; totalUsd: number; pricePerM: number };
 
@@ -23,7 +24,10 @@ function directions(reply: string) {
   return [...reply.matchAll(DIRECTION)].map((m) => m[1].trim());
 }
 
-export default function Dashboard({ data }: { data: Business }) {
+export default function Dashboard({ data: initial }: { data: Business }) {
+  // Jarvis can change the data (send, move, tick off), so the dashboard shows the live copy.
+  const [data, setData] = useState<Live>(initial);
+  const [changed, setChanged] = useState(0);
   const [log, setLog] = useState<Message[]>([]);
   const [caption, setCaption] = useState("");
   const [mode, setMode] = useState<Mode>("idle");
@@ -106,8 +110,10 @@ export default function Dashboard({ data }: { data: Business }) {
       setLog((l) => [
         ...l,
         { who: "you", text: spoken(out.heard), tags: heardTags },
-        { who: "jarvis", text: spoken(out.reply), tags: directions(out.reply) },
+        { who: "jarvis", text: spoken(out.reply), tags: directions(out.reply), done: (out.done || []).map((d: { action: string; detail: string }) => `${d.action}: ${d.detail}`) },
       ]);
+      if (out.business) setData(out.business);
+      if (out.done?.length) setChanged((n) => n + 1);
       setCaption(spoken(out.reply));
       showMeter(out.meter);
       await play(out.audio);
@@ -257,6 +263,15 @@ export default function Dashboard({ data }: { data: Business }) {
                 </div>
                 <div>
                   {m.text}
+                  {m.done && m.done.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {m.done.map((d, j) => (
+                        <span key={j} className="chip chip-done">
+                          ✓ {d}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {m.tags && m.tags.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       {m.tags.map((tag, j) => (
@@ -278,10 +293,13 @@ export default function Dashboard({ data }: { data: Business }) {
           <div className="card p-5">
             <div className="label">Today</div>
             <ul className="mt-3 flex flex-col gap-3">
-              {data.calendar.map((c, i) => (
-                <li key={i} className="grid grid-cols-[52px_1fr] gap-3 text-[14px]">
+              {data.calendar.map((c) => (
+                <li key={`${c.title}-${c.time}-${c.day ?? ""}`} className={`${changed ? "flash" : ""} grid grid-cols-[52px_1fr] gap-3 text-[14px] ${c.day ? "opacity-60" : ""}`}>
                   <span className="font-semibold tabular-nums text-accent">{c.time}</span>
-                  <span>{c.title}</span>
+                  <span>
+                    {c.title}
+                    {c.day && <span className="chip chip-muted ml-2">moved to {c.day}</span>}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -289,17 +307,44 @@ export default function Dashboard({ data }: { data: Business }) {
           <div className="card p-5">
             <div className="label">Promised and not done</div>
             <ul className="mt-3 flex flex-col gap-3">
-              {data.tasks.map((task, i) => (
-                <li key={i} className="text-[14px] leading-snug">
-                  <div>{task.title}</div>
-                  <div className="mt-1 flex gap-2 text-[12px]">
-                    <span className="chip chip-muted">promised {task.promised}</span>
-                    <span className="chip !border-[rgba(240,113,90,0.35)] !bg-[rgba(240,113,90,0.08)] !text-danger">{task.status}</span>
-                  </div>
-                </li>
-              ))}
+              {data.tasks.map((task) => {
+                const finished = task.status === "done";
+                return (
+                  <li key={`${task.title}-${task.status}`} className={`${changed ? "flash" : ""} text-[14px] leading-snug ${finished ? "text-muted" : ""}`}>
+                    <div className={finished ? "line-through" : ""}>
+                      {finished && <span className="mr-1.5 text-good">✓</span>}
+                      {task.title}
+                    </div>
+                    <div className="mt-1 flex gap-2 text-[12px]">
+                      <span className="chip chip-muted">promised {task.promised}</span>
+                      {finished ? (
+                        <span className="chip chip-done">done</span>
+                      ) : (
+                        <span className="chip !border-[rgba(240,113,90,0.35)] !bg-[rgba(240,113,90,0.08)] !text-danger">{task.status}</span>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </div>
+          {data.outbox && data.outbox.length > 0 && (
+            <div className="card p-5">
+              <div className="label">Outbox</div>
+              <ul className="mt-3 flex flex-col gap-3">
+                {data.outbox.map((m) => (
+                  <li key={m.at} className="flash text-[13px] leading-snug">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold">{m.subject}</span>
+                      <span className="chip chip-done">sent</span>
+                    </div>
+                    <div className="mt-1 text-muted">to {m.to}</div>
+                    <div className="mt-1.5 line-clamp-3 text-[12px] text-muted">{m.body}</div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </aside>
       </section>
 
