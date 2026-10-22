@@ -190,6 +190,25 @@ export default function Dashboard({ data: initial }: { data: Business }) {
     await play(out.audio, out.script);
   }, [play, showMeter]);
 
+  // ---------- start my day: Jarvis briefs you first ----------
+  const [started, setStarted] = useState(false);
+  const greet = useCallback(async () => {
+    setStarted(true);
+    setMode("thinking");
+    setStatus("Waking up…");
+    const now = new Date().toLocaleString("en-US", { weekday: "long", hour: "numeric", minute: "2-digit" });
+    const out = await (await fetch("/api/greet", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ now }) })).json();
+    if (out.error) {
+      setStatus(out.error);
+      setMode("idle");
+      return;
+    }
+    setLog((l) => [...l, { who: "jarvis", text: spoken(out.reply), tags: directions(out.reply) }]);
+    setCaption(spoken(out.reply));
+    showMeter(out.meter);
+    await play(out.audio, out.reply);
+  }, [play, showMeter]);
+
   // ---------- hold to talk (button or space bar) ----------
   const startTalking = useCallback(async () => {
     if (rec.current?.state === "recording") return;
@@ -302,7 +321,16 @@ export default function Dashboard({ data: initial }: { data: Business }) {
         {/* center: Jarvis */}
         <div className="card flex min-h-[560px] flex-col items-center justify-between overflow-hidden px-6 pb-4 pt-6">
           <Orb level={level} mood={mood} />
-          <p className="min-h-[64px] max-w-[640px] text-center text-[21px] font-medium leading-[1.45]">{caption}</p>
+          {!started && log.length === 0 ? (
+            <button
+              onClick={greet}
+              className="rounded-full border border-[rgba(212,176,76,0.45)] bg-accent-soft px-8 py-4 text-[17px] font-semibold transition hover:bg-[rgba(212,176,76,0.24)]"
+            >
+              Start my day
+            </button>
+          ) : (
+            <p className="min-h-[64px] max-w-[640px] text-center text-[21px] font-medium leading-[1.45]">{caption}</p>
+          )}
           <div className="log mt-3 flex max-h-[200px] w-full flex-col gap-2.5 overflow-y-auto pt-4">
             {log.map((m, i) => (
               <div key={i} className="grid grid-cols-[64px_1fr] gap-3 text-[14px] leading-relaxed">
