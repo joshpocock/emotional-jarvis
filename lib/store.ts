@@ -2,8 +2,7 @@
 // Kept on globalThis so every route handler shares it, even across dev reloads.
 import { randomUUID } from "node:crypto";
 import type Anthropic from "@anthropic-ai/sdk";
-
-export const JARVIS_VOICE = process.env.JARVIS_VOICE_ID || "bf322df2096a46f18c579d0baa36f41d"; // Fish public voice "Adrian"
+import { jarvisVoice } from "./voice";
 
 // Cost meter. Drama 3 bills by UTF-8 bytes of input text; speech to text by audio duration.
 const PRICE_PER_M_BYTES = Number(process.env.DRAMA3_PRICE_PER_M || 10); // launch price; list price is $50
@@ -21,7 +20,7 @@ export const store: Store = (g.__jarvis ??= { history: [], pending: new Map(), u
 store.usage ??= { ttsBytes: 0, asrSeconds: 0 };
 
 // Park text for the audio route, which streams it from Drama 3 when the page asks for it.
-export function queueAudio(text: string, voice: string | string[] = JARVIS_VOICE): string {
+export function queueAudio(text: string, voice: string | string[] = jarvisVoice()): string {
   store.usage.ttsBytes += Buffer.byteLength(text, "utf8");
   const id = randomUUID();
   store.pending.set(id, { text, voice });

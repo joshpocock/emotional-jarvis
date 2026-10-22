@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Business } from "@/lib/business";
 import Orb, { type Mood } from "./Orb";
+import VoiceSetup, { type Cloned } from "./VoiceSetup";
 
 type Who = "you" | "jarvis" | "host0" | "host1";
 type Message = { who: Who; text: string; tags?: string[]; done?: string[] };
@@ -58,7 +59,7 @@ function segmentsOf(text: string) {
   return out;
 }
 
-export default function Dashboard({ data: initial }: { data: Business }) {
+export default function Dashboard({ data: initial, ownVoice }: { data: Business; ownVoice: boolean }) {
   // Jarvis can change the data (send, move, tick off), so the dashboard shows the live copy.
   const [data, setData] = useState<Live>(initial);
   const [changed, setChanged] = useState(0);
@@ -209,6 +210,41 @@ export default function Dashboard({ data: initial }: { data: Business }) {
     await play(out.audio, out.reply);
   }, [play, showMeter]);
 
+  // ---------- use my voice: clone it, or switch back to the default ----------
+  const [mine, setMine] = useState(ownVoice);
+  const [cloning, setCloning] = useState(false);
+  const say = useCallback(
+    async (out: { reply: string; audio: string; meter?: Meter }) => {
+      setLog((l) => [...l, { who: "jarvis", text: spoken(out.reply), tags: directions(out.reply) }]);
+      setCaption(spoken(out.reply));
+      showMeter(out.meter);
+      await play(out.audio, out.reply);
+    },
+    [play, showMeter],
+  );
+  const cloned = useCallback(
+    (out: Cloned) => {
+      setCloning(false);
+      setMine(true);
+      setStarted(true);
+      say(out);
+    },
+    [say],
+  );
+  const defaultVoice = useCallback(async () => {
+    setMode("thinking");
+    setStatus("Switching voice…");
+    const out = await (await fetch("/api/voice", { method: "DELETE" })).json();
+    if (out.error) {
+      setStatus(out.error);
+      setMode("idle");
+      return;
+    }
+    setMine(false);
+    setStarted(true);
+    await say(out);
+  }, [say]);
+
   // ---------- hold to talk (button or space bar) ----------
   const startTalking = useCallback(async () => {
     if (rec.current?.state === "recording") return;
@@ -235,6 +271,7 @@ export default function Dashboard({ data: initial }: { data: Business }) {
   }, []);
 
   useEffect(() => {
+    if (cloning) return; // the space bar belongs to the voice recorder while it's open
     const typing = () => document.activeElement?.tagName === "INPUT";
     const down = (e: KeyboardEvent) => {
       if (e.code === "Space" && !typing() && !e.repeat) {
@@ -253,7 +290,7 @@ export default function Dashboard({ data: initial }: { data: Business }) {
       window.removeEventListener("keyup", up);
       window.removeEventListener("pointerup", stopTalking);
     };
-  }, [startTalking, stopTalking]);
+  }, [startTalking, stopTalking, cloning]);
 
   const t = data.today;
   const change = Math.round(((t.revenue_this_week - t.revenue_last_week) / t.revenue_last_week) * 100);
@@ -449,6 +486,22 @@ export default function Dashboard({ data: initial }: { data: Business }) {
           </svg>
           Brief me like a podcast
         </button>
+        <button
+          onClick={() => {
+            if (mine) return defaultVoice();
+            voice.current?.pause();
+            setCloning(true);
+          }}
+          disabled={mode === "listening" || mode === "thinking"}
+          title={mine ? "Jarvis is speaking in your voice" : "Record 30 seconds and Jarvis speaks in your voice"}
+          className="inline-flex items-center gap-2.5 rounded-full border border-line px-6 py-[15px] text-[15px] font-semibold transition hover:border-[rgba(212,176,76,0.45)] disabled:opacity-50"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 21a8 8 0 0 1 16 0" />
+          </svg>
+          {mine ? "Back to default voice" : "Use my voice"}
+        </button>
         <form
           className="flex-1"
           onSubmit={(e) => {
@@ -467,6 +520,7 @@ export default function Dashboard({ data: initial }: { data: Business }) {
         </form>
       </footer>
       <audio ref={voice} />
+      {cloning && <VoiceSetup onClose={() => setCloning(false)} onCreated={cloned} />}
     </main>
   );
 }

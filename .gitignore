@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 !.env.example
+
+# your cloned voice, made by the "Use my voice" button
+/data/voice.json

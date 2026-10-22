@@ -19,6 +19,7 @@ Built with **Fish Audio Drama 3** (voice and speech to text), **Claude** (the br
 - **It takes actions.** "Send the Brightside invoice", "move my four thirty to tomorrow", "tick off the walkthrough": Jarvis does it with Claude tool use and the dashboard updates live.
 - **It preps you for meetings.** "Prep me for my two o'clock with Shopify": a real browser window opens the company's website, Jarvis reads it and briefs you on what they do, what to bring up and one sharp question to ask.
 - **Start my day.** One click and Jarvis greets you and briefs you on what matters most, in the right mood.
+- **Use my voice.** Read a paragraph for 30 seconds and Fish Audio clones it into a private voice; Jarvis speaks in it from then on. One click switches back.
 
 ## Setup (2 minutes)
 
@@ -40,7 +41,7 @@ npm run dev
 ## Make it yours
 
 - **Your business data:** edit `data/business.json` and refresh. Jarvis only states facts from this file.
-- **Jarvis's voice:** set `JARVIS_VOICE_ID` in `.env.local` to any Fish Audio voice ID, including a clone of your own voice.
+- **Jarvis's voice:** click **Use my voice** to clone your own (saved to `data/voice.json`), or set `JARVIS_VOICE_ID` in `.env.local` to change the default to any Fish Audio voice ID.
 - **Second podcast host:** `COHOST_VOICE_ID`.
 - **Jarvis's personality:** the first lines of `systemPrompt()` in `lib/brain.ts` (a dry, loyal butler by default).
 - **How Jarvis picks its tone:** the `HOW YOU SOUND` section in `lib/brain.ts`.
@@ -60,12 +61,14 @@ mic -> Fish Audio speech to text (transcribe-1-pro, keeps emotion cues)
 |---|---|
 | `components/Dashboard.tsx` | The dashboard, hold-to-talk, transcript and meter |
 | `components/Orb.tsx` | The orb that follows the voice and takes the colour of the mood |
-| `lib/fish.ts` | Fish Audio speech to text and Drama 3 |
+| `components/VoiceSetup.tsx` | Use my voice: the 30-second recording |
+| `lib/fish.ts` | Fish Audio speech to text, Drama 3 and voice cloning |
+| `lib/voice.ts` | Which voice Jarvis uses: yours from `data/voice.json`, or the default |
 | `lib/brain.ts` | Claude: replies and the podcast script |
 | `lib/store.ts` | Conversation, queued audio and the cost meter |
 | `lib/actions.ts` | What Jarvis can do: the tools, and the live copy of your data they change |
 | `lib/browser.ts` | Opens a real, visible browser and reads a website (Playwright) |
-| `app/api/*` | `talk`, `audio/[id]`, `podcast`, `greet`, `reset` |
+| `app/api/*` | `talk`, `audio/[id]`, `podcast`, `greet`, `reset`, `voice` |
 | `data/business.json` | Your business data |
 
 ## The build, step by step
