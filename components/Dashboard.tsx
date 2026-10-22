@@ -7,6 +7,7 @@ import Orb from "./Orb";
 type Who = "you" | "jarvis" | "host0" | "host1";
 type Message = { who: Who; text: string; tags?: string[] };
 type Mode = "idle" | "listening" | "thinking" | "speaking";
+type Meter = { ttsBytes: number; asrSeconds: number; totalUsd: number; pricePerM: number };
 
 const NAMES: Record<Who, string> = { you: "YOU", jarvis: "JARVIS", host0: "HOST 1", host1: "HOST 2" };
 const WHO_COLOR: Record<Who, string> = { you: "text-muted", jarvis: "text-accent", host0: "text-accent", host1: "text-[#c9c6bc]" };
@@ -28,6 +29,13 @@ export default function Dashboard({ data }: { data: Business }) {
   const [mode, setMode] = useState<Mode>("idle");
   const [status, setStatus] = useState("Hold space to talk");
   const [typed, setTyped] = useState("");
+  const [cost, setCost] = useState<Meter | null>(null);
+  const [bumpKey, setBumpKey] = useState(0);
+  const showMeter = useCallback((m?: Meter) => {
+    if (!m) return;
+    setCost(m);
+    setBumpKey((k) => k + 1);
+  }, []);
 
   const voice = useRef<HTMLAudioElement>(null);
   const ctx = useRef<AudioContext | null>(null);
@@ -101,9 +109,10 @@ export default function Dashboard({ data }: { data: Business }) {
         { who: "jarvis", text: spoken(out.reply), tags: directions(out.reply) },
       ]);
       setCaption(spoken(out.reply));
+      showMeter(out.meter);
       await play(out.audio);
     },
-    [play],
+    [play, showMeter],
   );
 
   // ---------- brief me like a podcast: two hosts, one Drama 3 request ----------
@@ -123,8 +132,9 @@ export default function Dashboard({ data }: { data: Business }) {
     }
     setLog((l) => [...l, ...lines]);
     setCaption("");
+    showMeter(out.meter);
     await play(out.audio);
-  }, [play]);
+  }, [play, showMeter]);
 
   // ---------- hold to talk (button or space bar) ----------
   const startTalking = useCallback(async () => {
@@ -185,6 +195,18 @@ export default function Dashboard({ data }: { data: Business }) {
           JARVIS
           <span className="ml-3 text-[12px] font-medium tracking-normal text-muted">{data.business}</span>
         </div>
+        <div
+          className="flex items-baseline gap-2.5 rounded-full border border-line bg-panel px-4 py-2 text-[13px]"
+          title="Drama 3 bills by text size; speech to text by audio length"
+        >
+          <span className="label">Voice spend</span>
+          <span key={bumpKey} className={`text-[17px] font-bold tabular-nums text-accent ${bumpKey ? "bump" : ""}`}>
+            ${(cost?.totalUsd ?? 0).toFixed(4)}
+          </span>
+          <span className="hidden text-muted md:inline">
+            {(cost?.ttsBytes ?? 0).toLocaleString("en-US")} characters sent to Drama 3, at ${cost?.pricePerM ?? 10} per million
+          </span>
+        </div>
         <div className={`min-w-[150px] text-right text-[14px] ${live ? "text-accent" : "text-muted"}`}>{status}</div>
       </header>
 
@@ -205,7 +227,7 @@ export default function Dashboard({ data }: { data: Business }) {
               <div className="mt-2 text-[28px] font-bold tabular-nums">{t.new_leads}</div>
             </div>
             <div className="card p-5">
-              <div className="label">Open tickets</div>
+              <div className="label">Tickets</div>
               <div className="mt-2 text-[28px] font-bold tabular-nums">{t.open_support_tickets}</div>
             </div>
           </div>
