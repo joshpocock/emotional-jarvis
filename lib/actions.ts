@@ -1,13 +1,15 @@
 // What Jarvis can do, not just say: email a client, move a meeting, tick off a task.
 // Changes live in memory (restart the server to get data/business.json back).
-// The outbox is a demo: emails land on the dashboard. Wire sendEmail() to your email provider to send for real.
+// Emails go out through Resend when RESEND_API_KEY is set (see lib/email.ts); otherwise the outbox is a demo.
 import type Anthropic from "@anthropic-ai/sdk";
 import { business, type Business } from "./business";
 import { readWebsite } from "./browser";
+import { sendEmail, sendsForReal } from "./email";
 
 // actions_taken is Jarvis's own record of what it did this session; it sees it with the rest of the data.
 type State = Business & {
-  outbox: { to: string; subject: string; body: string; at: string }[];
+  // real: it actually went out. sent_to: where it went, when EMAIL_REDIRECT_TO sent it somewhere else.
+  outbox: { to: string; subject: string; body: string; at: string; real: boolean; sent_to?: string }[];
   actions_taken: string[];
 };
 
@@ -73,7 +75,8 @@ export type Done = { action: string; detail: string };
 
 // Run one tool call against the live state and say what happened.
 export async function runTool(name: string, input: Record<string, string>): Promise<{ result: string; done?: Done }> {
-  const out = name === "research_website" ? await research(input.url) : act(name, input);
+  const out =
+    name === "research_website" ? await research(input.url) : name === "send_email" ? await email(input) : act(name, input);
   if (out.done) state().actions_taken.push(`${out.done.action}: ${out.done.detail}`);
   return out;
 }
@@ -87,12 +90,29 @@ async function research(url: string): Promise<{ result: string; done?: Done }> {
   }
 }
 
+async function email(input: Record<string, string>): Promise<{ result: string; done?: Done }> {
+  const { to, subject, body } = input;
+  const real = sendsForReal();
+  let sentTo = to;
+  if (real) {
+    try {
+      sentTo = await sendEmail({ to, subject, body });
+    } catch (err) {
+      return { result: `Couldn't send to ${to}: ${err instanceof Error ? err.message : String(err)}` };
+    }
+  }
+  const redirected = sentTo !== to ? sentTo : undefined;
+  state().outbox.unshift({ to, subject, body, at: new Date().toISOString(), real, sent_to: redirected });
+  const result = !real
+    ? `Sent to ${to} (demo outbox, nothing really went out).`
+    : redirected
+      ? `Sent. Test mode delivered it to ${redirected} instead of ${to}.`
+      : `Sent to ${to}.`;
+  return { result, done: { action: "Email sent", detail: `${subject} → ${to}` } };
+}
+
 function act(name: string, input: Record<string, string>): { result: string; done?: Done } {
   const s = state();
-  if (name === "send_email") {
-    s.outbox.unshift({ to: input.to, subject: input.subject, body: input.body, at: new Date().toISOString() });
-    return { result: `Sent to ${input.to}.`, done: { action: "Email sent", detail: `${input.subject} → ${input.to}` } };
-  }
   if (name === "move_event") {
     const e = find(s.calendar, input.title_contains);
     if (!e) return { result: `No event matching "${input.title_contains}".` };

@@ -6,7 +6,7 @@ import Orb, { type Mood } from "./Orb";
 
 type Who = "you" | "jarvis" | "host0" | "host1";
 type Message = { who: Who; text: string; tags?: string[]; done?: string[] };
-type Live = Business & { outbox?: { to: string; subject: string; body: string; at: string }[] };
+type Live = Business & { outbox?: { to: string; subject: string; body: string; at: string; real: boolean; sent_to?: string }[] };
 type Mode = "idle" | "listening" | "thinking" | "speaking";
 type Meter = { ttsBytes: number; asrSeconds: number; totalUsd: number; pricePerM: number };
 
@@ -412,9 +412,12 @@ export default function Dashboard({ data: initial }: { data: Business }) {
                   <li key={m.at} className="flash text-[13px] leading-snug">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-semibold">{m.subject}</span>
-                      <span className="chip chip-done">sent</span>
+                      <span className={`chip shrink-0 ${m.real ? "chip-done" : "chip-muted"}`}>{m.real ? "sent for real" : "demo"}</span>
                     </div>
-                    <div className="mt-1 text-muted">to {m.to}</div>
+                    <div className="mt-1 text-muted">
+                      to {m.to}
+                      {m.sent_to && <> (redirected to {m.sent_to})</>}
+                    </div>
                     <div className="mt-1.5 line-clamp-3 text-[12px] text-muted">{m.body}</div>
                   </li>
                 ))}

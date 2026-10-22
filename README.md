@@ -45,7 +45,7 @@ npm run dev
 - **Jarvis's personality:** the first lines of `systemPrompt()` in `lib/brain.ts` (a dry, loyal butler by default).
 - **How Jarvis picks its tone:** the `HOW YOU SOUND` section in `lib/brain.ts`.
 - **Orb colours:** `PALETTE` in `components/Orb.tsx`, and which directions map to which mood in `MOODS` in `components/Dashboard.tsx`.
-- **Real email:** the outbox is a demo, so emails land on the dashboard. Swap the `send_email` branch in `lib/actions.ts` for your email provider to send for real.
+- **Real email:** set `RESEND_API_KEY` and `EMAIL_FROM` (a sender on your verified Resend domain) and Jarvis's emails go out for real. To test safely, set `EMAIL_REDIRECT_TO` and every email goes to you instead, with the real recipient in the subject. Without a key, emails just land in the demo outbox. Each Outbox card says "sent for real" or "demo".
 - **More actions:** add a tool to `tools` in `lib/actions.ts` and handle it in `act()`.
 
 ## How it works
