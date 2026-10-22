@@ -3,6 +3,7 @@
 A voice assistant dashboard for your business that picks its own tone for every reply.
 Calm when the numbers are good, urgent when something breaks, dry when you're putting off that invoice.
 Speak Spanish or French and it answers in the same voice. Hit one button and two hosts brief you on your day like a podcast.
+And it does things: ask it to send an invoice, move a meeting or tick off a task, and the dashboard changes in front of you.
 
 Built with **Fish Audio Drama 3** (voice and speech to text), **Claude** (the brain) and **Next.js**.
 
@@ -15,6 +16,8 @@ Built with **Fish Audio Drama 3** (voice and speech to text), **Claude** (the br
 - **Any language, same voice.** Switch languages mid-conversation; Jarvis follows.
 - **Brief me like a podcast.** Two hosts, one Drama 3 request.
 - **Voice spend meter.** See exactly what the voice costs as you go.
+- **It takes actions.** "Send the Brightside invoice", "move my four thirty to tomorrow", "tick off the walkthrough": Jarvis does it with Claude tool use and the dashboard updates live.
+- **Start my day.** One click and Jarvis greets you and briefs you on what matters most, in the right mood.
 
 ## Setup (2 minutes)
 
@@ -38,6 +41,8 @@ npm run dev
 - **Jarvis's voice:** set `JARVIS_VOICE_ID` in `.env.local` to any Fish Audio voice ID, including a clone of your own voice.
 - **Second podcast host:** `COHOST_VOICE_ID`.
 - **How Jarvis picks its tone:** the `HOW YOU SOUND` section in `lib/brain.ts`.
+- **Real email:** the outbox is a demo, so emails land on the dashboard. Swap the `send_email` branch in `lib/actions.ts` for your email provider to send for real.
+- **More actions:** add a tool to `tools` in `lib/actions.ts` and handle it in `act()`.
 
 ## How it works
 
@@ -54,7 +59,8 @@ mic -> Fish Audio speech to text (transcribe-1-pro, keeps emotion cues)
 | `lib/fish.ts` | Fish Audio speech to text and Drama 3 |
 | `lib/brain.ts` | Claude: replies and the podcast script |
 | `lib/store.ts` | Conversation, queued audio and the cost meter |
-| `app/api/*` | `talk`, `audio/[id]`, `podcast`, `reset` |
+| `lib/actions.ts` | What Jarvis can do: the tools, and the live copy of your data they change |
+| `app/api/*` | `talk`, `audio/[id]`, `podcast`, `greet`, `reset` |
 | `data/business.json` | Your business data |
 
 ## The build, step by step
@@ -68,12 +74,15 @@ Each step is a git tag, so you can see exactly what changed:
 | `step-2-language` | Replies in the language you speak |
 | `step-3-podcast` | Two-host podcast briefing in one request |
 | `step-4-cost-meter` | Live voice spend meter |
+| `step-5-actions` | Jarvis sends emails, moves meetings and ticks off tasks |
+| `step-6-greeting` | Start my day: Jarvis briefs you first |
 
 `git checkout step-1-emotion` to see any stage.
 
 ## Notes
 
 - The `model: drama-3` header in `lib/fish.ts` matters: without it, Fish Audio silently falls back to an older model.
+- Changes Jarvis makes live in memory. Restart the server to get `data/business.json` back.
 - Mid-line language switching tags are experimental in Drama 3; plain replies in another language work well.
 
 MIT licensed.
