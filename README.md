@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Emotional Jarvis
 
-## Getting Started
+A voice assistant dashboard for your business that picks its own tone for every reply.
+Calm when the numbers are good, urgent when something breaks, dry when you're putting off that invoice.
+Speak Spanish or French and it answers in the same voice. Hit one button and two hosts brief you on your day like a podcast.
 
-First, run the development server:
+Built with **Fish Audio Drama 3** (voice and speech to text), **Claude** (the brain) and **Next.js**.
+
+## What it does
+
+- **Your business on one screen.** Revenue, leads, tickets, alerts, today's calendar and the tasks you promised and haven't done, all from `data/business.json`.
+- **Talk to it.** Hold the button (or the space bar), speak, let go. Fish Audio transcribes you, Claude answers, Drama 3 speaks.
+- **It directs its own voice.** Claude writes Drama 3 directions like `[dry, deadpan]` or `[alert, fast, serious]` into every reply, and can change them mid-sentence. You see them as chips under each reply.
+- **It hears how you sound.** Fish Audio's speech to text tags how you said it (`[sigh]`, `[excited]`), and Jarvis reacts.
+- **Any language, same voice.** Switch languages mid-conversation; Jarvis follows.
+- **Brief me like a podcast.** Two hosts, one Drama 3 request.
+- **Voice spend meter.** See exactly what the voice costs as you go.
+
+## Setup (2 minutes)
+
+You need Node.js 20 or newer.
+
+1. Get a Fish Audio API key: sign up at fish.audio, then API Keys.
+2. Get an Anthropic API key: console.anthropic.com.
+3. In this folder:
 
 ```bash
+npm install
+cp .env.example .env.local    # then paste both keys into .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Open http://localhost:3000, allow the microphone, and hold the space bar to talk.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Make it yours
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Your business data:** edit `data/business.json` and refresh. Jarvis only states facts from this file.
+- **Jarvis's voice:** set `JARVIS_VOICE_ID` in `.env.local` to any Fish Audio voice ID, including a clone of your own voice.
+- **Second podcast host:** `COHOST_VOICE_ID`.
+- **How Jarvis picks its tone:** the `HOW YOU SOUND` section in `lib/brain.ts`.
 
-## Learn More
+## How it works
 
-To learn more about Next.js, take a look at the following resources:
+```
+mic -> Fish Audio speech to text (transcribe-1-pro, keeps emotion cues)
+    -> Claude (writes the reply plus Drama 3 directions)
+    -> Fish Audio Drama 3 (streams the voice back while it's still generating)
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| File | Job |
+|---|---|
+| `components/Dashboard.tsx` | The dashboard, hold-to-talk, transcript and meter |
+| `components/Orb.tsx` | The orb that follows the voice |
+| `lib/fish.ts` | Fish Audio speech to text and Drama 3 |
+| `lib/brain.ts` | Claude: replies and the podcast script |
+| `lib/store.ts` | Conversation, queued audio and the cost meter |
+| `app/api/*` | `talk`, `audio/[id]`, `podcast`, `reset` |
+| `data/business.json` | Your business data |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## The build, step by step
 
-## Deploy on Vercel
+Each step is a git tag, so you can see exactly what changed:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Tag | Adds |
+|---|---|
+| `step-0-base` | The dashboard, and talking to Jarvis: speech to text, Claude, Drama 3 voice |
+| `step-1-emotion` | Jarvis directs its own voice and reacts to how you sound |
+| `step-2-language` | Replies in the language you speak |
+| `step-3-podcast` | Two-host podcast briefing in one request |
+| `step-4-cost-meter` | Live voice spend meter |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`git checkout step-1-emotion` to see any stage.
+
+## Notes
+
+- The `model: drama-3` header in `lib/fish.ts` matters: without it, Fish Audio silently falls back to an older model.
+- Mid-line language switching tags are experimental in Drama 3; plain replies in another language work well.
+
+MIT licensed.
