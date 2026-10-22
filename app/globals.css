@@ -62,6 +62,12 @@ body {
   border: 1px solid rgba(212, 176, 76, 0.3);
 }
 
+.chip-done {
+  background: rgba(127, 212, 154, 0.1);
+  color: var(--good);
+  border-color: rgba(127, 212, 154, 0.35);
+}
+
 .chip-muted {
   background: transparent;
   color: var(--muted);
@@ -80,4 +86,21 @@ body {
 
 .bump {
   animation: bump 0.5s ease;
+}
+
+/* A row Jarvis just changed glows gold for a moment. */
+@keyframes flash {
+  0% {
+    background: rgba(212, 176, 76, 0.28);
+    box-shadow: 0 0 0 6px rgba(212, 176, 76, 0.28);
+  }
+  100% {
+    background: transparent;
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+.flash {
+  border-radius: 10px;
+  animation: flash 1.8s ease-out;
 }

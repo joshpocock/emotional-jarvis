@@ -8,15 +8,47 @@
     "open_support_tickets": 2
   },
   "calendar": [
-    { "time": "10:00", "title": "Discovery call with Lumen Dental" },
-    { "time": "13:00", "title": "Lunch with Priya (partner agency)" },
-    { "time": "16:30", "title": "Review the Q4 ad creative" }
+    {
+      "time": "10:00",
+      "title": "Discovery call with Lumen Dental"
+    },
+    {
+      "time": "13:00",
+      "title": "Lunch with Priya (partner agency)"
+    },
+    {
+      "time": "16:30",
+      "title": "Review the Q4 ad creative"
+    }
   ],
   "tasks": [
-    { "title": "Send the Brightside invoice ($4,200)", "promised": "Monday", "status": "not sent" },
-    { "title": "Record the onboarding walkthrough", "promised": "this week", "status": "not started" }
+    {
+      "title": "Send the Brightside invoice ($4,200)",
+      "promised": "Monday",
+      "status": "not sent"
+    },
+    {
+      "title": "Record the onboarding walkthrough",
+      "promised": "this week",
+      "status": "not started"
+    }
   ],
   "alerts": [
-    { "severity": "high", "text": "The checkout page on the client portal has returned errors for the last 12 minutes" }
+    {
+      "severity": "high",
+      "text": "The checkout page on the client portal has returned errors for the last 12 minutes"
+    }
+  ],
+  "contacts": [
+    {
+      "name": "Dana Reyes",
+      "company": "Brightside",
+      "email": "dana@brightside.example"
+    },
+    {
+      "name": "Priya Shah",
+      "company": "partner agency",
+      "email": "priya@lumenpartners.example"
+    }
   ]
 }

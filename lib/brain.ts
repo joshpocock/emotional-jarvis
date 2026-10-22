@@ -1,9 +1,12 @@
 // Jarvis's brain: Claude reads the business data and the conversation, and writes the reply.
 import Anthropic from "@anthropic-ai/sdk";
-import { businessJson } from "./business";
+import { state, tools, runTool, type Done } from "./actions";
 
 const MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
 const client = new Anthropic(); // reads ANTHROPIC_API_KEY from .env.local
+
+// The live business data, including anything Jarvis has changed this session.
+const businessJson = () => JSON.stringify(state(), null, 2);
 
 function systemPrompt(): string {
   return `You are Jarvis, the owner's voice assistant, with the manner of a dry, unflappable butler.
@@ -30,6 +33,14 @@ Pick the tone from the moment:
 - if the user sounds excited: match the energy
 The user's message may start with cues like [excited] or [sigh]. That is how they sounded; react to it.
 Use one to three directions per reply. Never explain or mention the directions.
+
+ACTIONS:
+You can act, not just talk: send_email, move_event, complete_task.
+When the owner asks you to do something, do it with the tools, then confirm in one short spoken line.
+For a payment reminder, email the client contact from the data, then mark the task done.
+Don't ask for confirmation on simple requests. Never claim you did something you didn't do with a tool.
+actions_taken in the data is your own record of what you did in earlier turns; trust it.
+Calendar times are 24-hour (16:30 is four thirty in the afternoon); say them the way a person would.
 
 LANGUAGE:
 Always reply in the language the user just spoke, and switch the moment they switch.
@@ -66,23 +77,46 @@ ${businessJson()}`,
     .trim();
 }
 
-export async function think(history: Anthropic.MessageParam[]): Promise<string> {
-  const response = await client.beta.messages.create({
-    model: MODEL,
-    max_tokens: 16000,
-    // Low effort keeps replies fast enough for a voice conversation.
-    output_config: { effort: "low" },
-    // If a request is ever declined, the API retries it on a fallback model in the same call.
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    system: systemPrompt(),
-    messages: history,
-  });
-  if (response.stop_reason === "refusal") return "Sorry, I can't help with that one.";
-  if (response.stop_reason === "max_tokens") console.warn("Claude hit max_tokens");
-  return response.content
-    .filter((b) => b.type === "text")
-    .map((b) => (b as { text: string }).text)
-    .join("")
-    .trim();
+// One turn. Claude may call tools first (each one changes the dashboard), then speaks.
+export async function think(history: Anthropic.MessageParam[]): Promise<{ reply: string; done: Done[] }> {
+  const messages = [...history];
+  const done: Done[] = [];
+  // Snapshot the data once per turn; tool results tell Claude what it changed during this turn.
+  const system = systemPrompt();
+  for (let step = 0; step < 6; step++) {
+    const response = await client.beta.messages.create({
+      model: MODEL,
+      max_tokens: 16000,
+      // Low effort keeps replies fast enough for a voice conversation.
+      output_config: { effort: "low" },
+      // If a request is ever declined, the API retries it on a fallback model in the same call.
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      system,
+      tools,
+      messages,
+    });
+    if (response.stop_reason === "refusal") return { reply: "Sorry, I can't help with that one.", done };
+    if (response.stop_reason === "max_tokens") console.warn("Claude hit max_tokens");
+    const calls = response.content.filter((b) => b.type === "tool_use");
+    if (response.stop_reason !== "tool_use" || calls.length === 0) {
+      const reply = response.content
+        .filter((b) => b.type === "text")
+        .map((b) => (b as { text: string }).text)
+        .join("")
+        .trim();
+      return { reply, done };
+    }
+    messages.push({ role: "assistant", content: response.content as Anthropic.ContentBlockParam[] });
+    messages.push({
+      role: "user",
+      content: calls.map((c) => {
+        const call = c as { id: string; name: string; input: Record<string, string> };
+        const out = runTool(call.name, call.input);
+        if (out.done) done.push(out.done);
+        return { type: "tool_result" as const, tool_use_id: call.id, content: out.result };
+      }),
+    });
+  }
+  return { reply: "[calm] Done.", done };
 }
