@@ -11,9 +11,14 @@ type Mode = "idle" | "listening" | "thinking" | "speaking";
 const NAMES: Record<Who, string> = { you: "YOU", jarvis: "JARVIS" };
 const money = (n: number) => `$${n.toLocaleString("en-US")}`;
 
-// What the viewer reads on screen.
+// Drama 3 directions look like [calm, warm] and <emphasis>word</emphasis>.
+// Hide them from what the viewer reads, and show them as chips instead.
+const DIRECTION = /\[([^\]]+)\]/g;
 function spoken(reply: string) {
-  return reply;
+  return reply.replace(DIRECTION, "").replace(/<\/?\w+>/g, "").replace(/\s{2,}/g, " ").trim();
+}
+function directions(reply: string) {
+  return [...reply.matchAll(DIRECTION)].map((m) => m[1].trim());
 }
 
 export default function Dashboard({ data }: { data: Business }) {
@@ -87,7 +92,11 @@ export default function Dashboard({ data }: { data: Business }) {
         setMode("idle");
         return;
       }
-      setLog((l) => [...l, { who: "you", text: spoken(out.heard) }, { who: "jarvis", text: spoken(out.reply) }]);
+      setLog((l) => [
+        ...l,
+        { who: "you", text: spoken(out.heard), tags: directions(out.heard).map((d) => `you sounded: ${d}`) },
+        { who: "jarvis", text: spoken(out.reply), tags: directions(out.reply) },
+      ]);
       setCaption(spoken(out.reply));
       await play(out.audio);
     },
