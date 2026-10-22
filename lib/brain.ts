@@ -40,6 +40,32 @@ BUSINESS DATA:
 ${businessJson()}`;
 }
 
+// A two-host morning briefing, written for one multi-speaker Drama 3 request.
+export async function podcastScript(): Promise<string> {
+  const response = await client.beta.messages.create({
+    model: MODEL,
+    max_tokens: 16000,
+    output_config: { effort: "low" },
+    betas: ["server-side-fallback-2026-07-01"],
+    fallbacks: "default",
+    system: `Write a 45-second, two-host podcast segment that briefs the owner on their day, using only the business data below.
+Host 0 is upbeat and energetic. Host 1 is dry, witty and a little sarcastic.
+Format: start every turn with <|speaker:0|> or <|speaker:1|>, then a Drama 3 direction in square brackets, then the line.
+Example: <|speaker:0|>[upbeat, fast] Good morning! <|speaker:1|>[dry, amused] Is it, though?
+6 to 8 short turns, about 110 words in total. Cover the numbers, the calendar, anything urgent, and tease the overdue task.
+Return only the script, nothing else.
+
+BUSINESS DATA:
+${businessJson()}`,
+    messages: [{ role: "user", content: "Brief me like a podcast." }],
+  });
+  return response.content
+    .filter((b) => b.type === "text")
+    .map((b) => (b as { text: string }).text)
+    .join("")
+    .trim();
+}
+
 export async function think(history: Anthropic.MessageParam[]): Promise<string> {
   const response = await client.beta.messages.create({
     model: MODEL,

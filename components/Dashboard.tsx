@@ -4,11 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Business } from "@/lib/business";
 import Orb, { type Mood } from "./Orb";
 
-type Who = "you" | "jarvis";
+type Who = "you" | "jarvis" | "host0" | "host1";
 type Message = { who: Who; text: string; tags?: string[] };
 type Mode = "idle" | "listening" | "thinking" | "speaking";
 
-const NAMES: Record<Who, string> = { you: "YOU", jarvis: "JARVIS" };
+const NAMES: Record<Who, string> = { you: "YOU", jarvis: "JARVIS", host0: "HOST 1", host1: "HOST 2" };
+const WHO_COLOR: Record<Who, string> = { you: "text-muted", jarvis: "text-accent", host0: "text-accent", host1: "text-[#c9c6bc]" };
 const money = (n: number) => `$${n.toLocaleString("en-US")}`;
 
 // Drama 3 directions look like [calm, warm] and <emphasis>word</emphasis>.
@@ -153,6 +154,26 @@ export default function Dashboard({ data }: { data: Business }) {
     [play],
   );
 
+  // ---------- brief me like a podcast: two hosts, one Drama 3 request ----------
+  const podcast = useCallback(async () => {
+    setMode("thinking");
+    setStatus("Writing the episode…");
+    const out = await (await fetch("/api/podcast", { method: "POST" })).json();
+    if (out.error) {
+      setStatus(out.error);
+      setMode("idle");
+      return;
+    }
+    const parts: string[] = out.script.split(/<\|speaker:(\d+)\|>/); // ["", "0", "line", "1", "line", ...]
+    const lines: Message[] = [];
+    for (let i = 1; i < parts.length; i += 2) {
+      lines.push({ who: `host${parts[i]}` as Who, text: spoken(parts[i + 1]), tags: directions(parts[i + 1]) });
+    }
+    setLog((l) => [...l, ...lines]);
+    setCaption("");
+    await play(out.audio, out.script);
+  }, [play]);
+
   // ---------- hold to talk (button or space bar) ----------
   const startTalking = useCallback(async () => {
     if (rec.current?.state === "recording") return;
@@ -257,7 +278,7 @@ export default function Dashboard({ data }: { data: Business }) {
           <div className="log mt-3 flex max-h-[200px] w-full flex-col gap-2.5 overflow-y-auto pt-4">
             {log.map((m, i) => (
               <div key={i} className="grid grid-cols-[64px_1fr] gap-3 text-[14px] leading-relaxed">
-                <div className={`pt-0.5 text-[11px] font-semibold tracking-[0.12em] ${m.who === "you" ? "text-muted" : "text-accent"}`}>
+                <div className={`pt-0.5 text-[11px] font-semibold tracking-[0.12em] ${WHO_COLOR[m.who]}`}>
                   {NAMES[m.who]}
                 </div>
                 <div>
@@ -321,6 +342,17 @@ export default function Dashboard({ data }: { data: Business }) {
             <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
           </svg>
           Hold to talk
+        </button>
+        <button
+          onClick={podcast}
+          className="inline-flex items-center gap-2.5 rounded-full border border-line px-6 py-[15px] text-[15px] font-semibold transition hover:border-[rgba(212,176,76,0.45)]"
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M3 14v-2a9 9 0 0 1 18 0v2" />
+            <rect x="3" y="14" width="4" height="6" rx="1.5" />
+            <rect x="17" y="14" width="4" height="6" rx="1.5" />
+          </svg>
+          Brief me like a podcast
         </button>
         <form
           className="flex-1"
