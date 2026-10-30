@@ -17,9 +17,10 @@ export async function POST(request: Request) {
     }
     if (!heard.text) return Response.json({ heard: "", reply: "", note: "I didn't catch that." });
 
-    store.history.push({ role: "user", content: heard.text });
-    const { reply, done } = await think(store.history.slice(-12));
-    store.history.push({ role: "assistant", content: reply });
+    // Saved only once Claude answers, so a failed turn can't leave a request behind for a later turn to act on.
+    const ask = { role: "user" as const, content: heard.text };
+    const { reply, done } = await think([...store.history.slice(-11), ask]);
+    store.history.push(ask, { role: "assistant", content: reply });
 
     const audio = queueAudio(reply);
     return Response.json({ heard: heard.text, language: heard.language || null, reply, audio, done, business: state(), meter: meter() });

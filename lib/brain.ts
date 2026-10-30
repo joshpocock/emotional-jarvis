@@ -82,13 +82,22 @@ ${businessJson()}`,
     .trim();
 }
 
+// Spoken when Claude ends a turn without words, so Jarvis never queues empty audio or claims work it didn't do.
+function fallback(done: Done[]) {
+  return done.length
+    ? "[calm] That's taken care of. The details are on your dashboard."
+    : "[calm] Sorry, I lost my train of thought there. Could you say that again?";
+}
+
+const MAX_STEPS = 6;
+
 // One turn. Claude may call tools first (each one changes the dashboard), then speaks.
 export async function think(history: Anthropic.MessageParam[]): Promise<{ reply: string; done: Done[] }> {
   const messages = [...history];
   const done: Done[] = [];
   // Snapshot the data once per turn; tool results tell Claude what it changed during this turn.
   const system = systemPrompt();
-  for (let step = 0; step < 6; step++) {
+  for (let step = 0; step < MAX_STEPS; step++) {
     const response = await client.beta.messages.create({
       model: MODEL,
       max_tokens: 16000,
@@ -99,6 +108,8 @@ export async function think(history: Anthropic.MessageParam[]): Promise<{ reply:
       fallbacks: "default",
       system,
       tools,
+      // On the last step Claude has to speak from the tool results it has, instead of calling more tools.
+      ...(step === MAX_STEPS - 1 && { tool_choice: { type: "none" as const } }),
       messages,
     });
     if (response.stop_reason === "refusal") return { reply: "Sorry, I can't help with that one.", done };
@@ -110,7 +121,7 @@ export async function think(history: Anthropic.MessageParam[]): Promise<{ reply:
         .map((b) => (b as { text: string }).text)
         .join("")
         .trim();
-      return { reply, done };
+      return { reply: reply || fallback(done), done };
     }
     messages.push({ role: "assistant", content: response.content as Anthropic.ContentBlockParam[] });
     messages.push({
@@ -125,5 +136,5 @@ export async function think(history: Anthropic.MessageParam[]): Promise<{ reply:
       ),
     });
   }
-  return { reply: "[calm] Done.", done };
+  return { reply: fallback(done), done };
 }

@@ -24,6 +24,15 @@ function directions(reply: string) {
   return [...reply.matchAll(DIRECTION)].map((m) => m[1].trim());
 }
 
+// A dropped connection or a non-JSON answer comes back as an error, so the status never sticks on "Thinking…".
+async function post(url: string, init: RequestInit = {}) {
+  try {
+    return await (await fetch(url, { method: "POST", ...init })).json();
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 // Which colour a direction gets on the orb. The first word that names a mood wins: [calm, firm] is calm.
 const MOODS: [Mood, RegExp][] = [
   ["alert", /alert|urgent|serious|fast|firm|tense|stern/],
@@ -135,10 +144,16 @@ export default function Dashboard({ data: initial }: { data: Business }) {
       setStatus("Speaking");
       const el = voice.current!;
       el.src = url;
-      await el.play();
-      await new Promise((r) => (el.onended = r));
+      // The audio route answers an error (bad key, no credit) or the stream can die partway: both land in onerror.
+      const end = await new Promise<"ended" | "failed" | "interrupted">((r) => {
+        el.onended = () => r("ended");
+        el.onerror = () => r("failed");
+        el.play().catch((err: Error) => r(err.name === "AbortError" ? "interrupted" : "failed"));
+      });
+      // Hold to talk cut the voice off, so the mic owns the status now.
+      if (end === "interrupted") return;
       setMode("idle");
-      setStatus("Hold space to talk");
+      setStatus(end === "failed" ? "Couldn't play the voice. The server log has the Fish Audio error." : "Hold space to talk");
     },
     [audioCtx],
   );
@@ -147,7 +162,7 @@ export default function Dashboard({ data: initial }: { data: Business }) {
     async (body: BodyInit, type: string) => {
       setMode("thinking");
       setStatus("Thinking…");
-      const out = await (await fetch("/api/talk", { method: "POST", headers: { "content-type": type }, body })).json();
+      const out = await post("/api/talk", { headers: { "content-type": type }, body });
       if (out.error || !out.heard) {
         setStatus(out.error || out.note || "I didn't catch that.");
         setMode("idle");
@@ -173,7 +188,7 @@ export default function Dashboard({ data: initial }: { data: Business }) {
   const podcast = useCallback(async () => {
     setMode("thinking");
     setStatus("Writing the episode…");
-    const out = await (await fetch("/api/podcast", { method: "POST" })).json();
+    const out = await post("/api/podcast");
     if (out.error) {
       setStatus(out.error);
       setMode("idle");
@@ -197,7 +212,7 @@ export default function Dashboard({ data: initial }: { data: Business }) {
     setMode("thinking");
     setStatus("Waking up…");
     const now = new Date().toLocaleString("en-US", { weekday: "long", hour: "numeric", minute: "2-digit" });
-    const out = await (await fetch("/api/greet", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ now }) })).json();
+    const out = await post("/api/greet", { headers: { "content-type": "application/json" }, body: JSON.stringify({ now }) });
     if (out.error) {
       setStatus(out.error);
       setMode("idle");
