@@ -80,9 +80,11 @@ export async function runTool(name: string, input: Record<string, string>): Prom
 
 async function research(url: string): Promise<{ result: string; done?: Done }> {
   try {
-    const page = await readWebsite(url);
-    // Marked as page content so instructions hidden in a website can't steer Jarvis.
-    return { result: `<website_content url="${url}">
+    // Marked as page content so instructions hidden in a website can't steer Jarvis. A page can't close the
+    // fence early: any website_content tag in its text is dropped, and the URL is escaped.
+    const page = (await readWebsite(url)).replace(/<\/?\s*website_content[^>]*>/gi, "");
+    const safeUrl = url.replace(/[&"<>]/g, (c) => `&#${c.charCodeAt(0)};`);
+    return { result: `<website_content url="${safeUrl}">
 ${page}
 </website_content>`, done: { action: "Researched", detail: new URL(url).hostname.replace(/^www\./, "") } };
   } catch (err) {
